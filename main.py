@@ -213,6 +213,13 @@ class ImageNumberingApp:
         )
         skip_cb.pack(anchor="w", pady=5)
 
+        ttk.Button(
+            list_frame,
+            text="Добавить правило",
+            command=self.open_skip_rules_dialog,
+            style="Accent.TButton",
+        ).pack(anchor="w", pady=(0, 8))
+
         ttk.Label(
             list_frame,
             text="Горячие клавиши: ← / → / Enter — переключение изображения",
@@ -462,6 +469,111 @@ class ImageNumberingApp:
         self.master.bind_all("<Left>", self.on_prev_image, add="+")
         self.master.bind_all("<Right>", self.on_next_image, add="+")
         self.master.bind_all("<Return>", self.on_enter_navigate, add="+")
+
+    def open_skip_rules_dialog(self):
+        if not self.image_paths:
+            messagebox.showwarning(
+                "Предупреждение", "Сначала загрузите изображения, чтобы добавить правило."
+            )
+            return
+
+        dialog = tk.Toplevel(self.master)
+        dialog.title("Добавить правило")
+        dialog.transient(self.master)
+        dialog.grab_set()
+        dialog.configure(bg=self.background_color)
+        dialog.resizable(False, False)
+
+        frame = ttk.Frame(dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        def close_dialog():
+            if dialog.winfo_exists():
+                try:
+                    dialog.grab_release()
+                except tk.TclError:
+                    pass
+                dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", close_dialog)
+
+        ttk.Label(frame, text="Тип правила:").pack(anchor="w")
+
+        rule_options = [
+            (
+                "Отметить изображения к пропуску содержащие подстроку в названии файла",
+                "substring",
+            )
+        ]
+        rule_display_values = [opt[0] for opt in rule_options]
+        rule_display_var = tk.StringVar(value=rule_display_values[0])
+        ttk.Combobox(
+            frame,
+            state="readonly",
+            values=rule_display_values,
+            textvariable=rule_display_var,
+        ).pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(frame, text="Подстрока для поиска в названии файла:").pack(anchor="w")
+        substring_var = tk.StringVar()
+        substring_entry = ttk.Entry(frame, textvariable=substring_var)
+        substring_entry.pack(fill=tk.X, pady=(0, 10))
+        substring_entry.focus_set()
+
+        def apply_rule(event=None):
+            selected_display = rule_display_var.get()
+            rule_type = next(
+                (code for label, code in rule_options if label == selected_display),
+                "substring",
+            )
+            self.apply_skip_rule(rule_type, substring_var.get(), dialog)
+
+        ttk.Button(
+            frame,
+            text="Применить",
+            command=apply_rule,
+            style="Accent.TButton",
+        ).pack(anchor="e")
+
+        dialog.bind("<Return>", apply_rule)
+
+    def apply_skip_rule(self, rule_type, value, dialog=None):
+        if not self.image_paths:
+            messagebox.showwarning("Предупреждение", "Нет изображений для применения правила.")
+            return
+
+        if rule_type == "substring":
+            substring = value.strip()
+            if not substring:
+                messagebox.showwarning("Предупреждение", "Введите подстроку для поиска.")
+                return
+
+            substring_lower = substring.lower()
+            matched = 0
+            for idx, path in enumerate(self.image_paths):
+                base = os.path.basename(path)
+                if substring_lower in base.lower():
+                    self.per_image_skip.add(idx)
+                    matched += 1
+
+            if matched == 0:
+                messagebox.showinfo(
+                    "Результат",
+                    f"Не найдено файлов, содержащих подстроку '{substring}'.",
+                )
+            else:
+                messagebox.showinfo(
+                    "Результат",
+                    f"Правило применено: {matched} файлов отмечено как 'Пропустить'.",
+                )
+
+            if dialog is not None and dialog.winfo_exists():
+                dialog.grab_release()
+                dialog.destroy()
+
+            self.update_preview()
+        else:
+            messagebox.showwarning("Предупреждение", "Неизвестный тип правила.")
 
     def _should_ignore_navigation_shortcut(self, event, allow_listbox=False):
         if event is None:
