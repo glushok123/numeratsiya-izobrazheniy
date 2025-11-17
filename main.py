@@ -26,6 +26,11 @@ class ImageNumberingApp:
         # Минимальные размеры окна по умолчанию
         self.master.minsize(900, 600)
 
+        # Цвета интерфейса
+        self.primary_color = "#4C7EF3"
+        self.danger_color = "#D93025"
+        self.background_color = "#F5F6FA"
+
         # Стили для более современного вида
         style = ttk.Style(self.master)
         try:
@@ -33,11 +38,15 @@ class ImageNumberingApp:
         except tk.TclError:
             pass
 
+        self._configure_styles(style)
+
         # Безопасная настройка шрифта (без пробелов в названии)
         try:
             self.master.option_add("*Font", "TkDefaultFont 10")
         except tk.TclError:
             pass
+
+        self.master.configure(bg=self.background_color)
 
         self.image_paths = []
         self.image_sizes = []  # (w, h) для отображения в списке
@@ -102,14 +111,52 @@ class ImageNumberingApp:
         # Масштаб предпросмотра
         self.zoom_var = tk.DoubleVar(value=1.0)
 
+        self.listbox_default_fg = "#1F1F1F"
+
         self._build_ui()
+        self._setup_keyboard_shortcuts()
+
+    def _configure_styles(self, style: ttk.Style):
+        """Настройка базовых стилей приложения."""
+        style.configure("TFrame", background=self.background_color)
+        style.configure("TLabelframe", background=self.background_color)
+        style.configure("TLabelframe.Label", background=self.background_color)
+        style.configure("TLabel", background=self.background_color)
+        style.configure("TCheckbutton", background=self.background_color)
+
+        style.configure(
+            "Accent.TButton",
+            padding=(12, 8),
+            background=self.primary_color,
+            foreground="white",
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0,
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#3456B8"), ("disabled", "#A0A8C0")],
+            foreground=[("disabled", "#E1E1E1")],
+        )
+
+        style.configure("TButton", padding=6)
+        style.configure(
+            "Skip.TCheckbutton",
+            background=self.background_color,
+            foreground=self.danger_color,
+            font=("Segoe UI", 10, "bold"),
+        )
 
     def _build_ui(self):
         # Верхняя панель - выбор папки
         top_frame = ttk.Frame(self.master)
         top_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        folder_btn = ttk.Button(top_frame, text="Выбрать папку с изображениями", command=self.choose_folder)
+        folder_btn = ttk.Button(
+            top_frame,
+            text="Выбрать папку с изображениями",
+            command=self.choose_folder,
+            style="Accent.TButton",
+        )
         folder_btn.pack(side=tk.LEFT)
 
         self.folder_label = ttk.Label(top_frame, text="Папка не выбрана")
@@ -123,13 +170,32 @@ class ImageNumberingApp:
         list_frame = ttk.Frame(main_frame)
         list_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-        list_label = ttk.Label(list_frame, text="Изображения (№ | имя файла (ШxВ))")
+        list_label = ttk.Label(
+            list_frame,
+            text="Изображения (№ | имя файла (ШxВ))",
+            font=("Segoe UI", 10, "bold"),
+        )
         list_label.pack(anchor="w")
 
         list_inner = ttk.Frame(list_frame)
         list_inner.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        self.listbox = tk.Listbox(list_inner, width=45, exportselection=False)
+        self.listbox = tk.Listbox(
+            list_inner,
+            width=45,
+            exportselection=False,
+            font=("Segoe UI", 10),
+            activestyle="none",
+            bg="#FFFFFF",
+            fg=self.listbox_default_fg,
+            selectbackground=self.primary_color,
+            selectforeground="white",
+            relief="flat",
+            bd=1,
+            highlightthickness=1,
+            highlightcolor="#d0d7e2",
+            highlightbackground="#d0d7e2",
+        )
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(list_inner, orient=tk.VERTICAL, command=self.listbox.yview)
@@ -142,9 +208,17 @@ class ImageNumberingApp:
             list_frame,
             text="Пропустить это изображение",
             variable=self.skip_current_var,
-            command=self.on_toggle_skip_current
+            command=self.on_toggle_skip_current,
+            style="Skip.TCheckbutton",
         )
         skip_cb.pack(anchor="w", pady=5)
+
+        ttk.Label(
+            list_frame,
+            text="Горячие клавиши: ← / → / Enter — переключение изображения",
+            wraplength=220,
+            foreground="#4A4A4A",
+        ).pack(anchor="w", pady=(0, 5))
 
         # Предпросмотр
         preview_outer = ttk.Frame(main_frame)
@@ -152,8 +226,11 @@ class ImageNumberingApp:
 
         preview_label_top = ttk.Label(
             preview_outer,
-            text="Предпросмотр (колесо мыши — зум, перетаскивание ЛКМ — панорамирование, "
-                 "клик ЛКМ без движения — задать позицию номера для этого изображения)",
+            text=(
+                "Предпросмотр: колесо мыши — зум, перетаскивание ЛКМ — панорамирование,"
+                " клик ЛКМ без движения — задать позицию номера."
+                " Также доступны клавиши ← / → / Enter для переключения изображений."
+            ),
             wraplength=600,
             justify="left",
         )
@@ -195,21 +272,24 @@ class ImageNumberingApp:
         manual_apply_btn = ttk.Button(
             manual_frame,
             text="Применить",
-            command=self.set_manual_number_for_current
+            command=self.set_manual_number_for_current,
+            style="Accent.TButton",
         )
         manual_apply_btn.pack(side=tk.LEFT, padx=3)
 
         manual_reset_btn = ttk.Button(
             manual_frame,
             text="Сбросить",
-            command=self.reset_manual_number_for_current
+            command=self.reset_manual_number_for_current,
+            style="Accent.TButton",
         )
         manual_reset_btn.pack(side=tk.LEFT, padx=3)
 
         pos_reset_btn = ttk.Button(
             manual_frame,
             text="Сброс позиции",
-            command=self.reset_position_for_current
+            command=self.reset_position_for_current,
+            style="Accent.TButton",
         )
         pos_reset_btn.pack(side=tk.LEFT, padx=3)
 
@@ -223,7 +303,8 @@ class ImageNumberingApp:
             zoom_frame,
             text="-",
             width=2,
-            command=lambda: self.change_zoom(0.8)
+            command=lambda: self.change_zoom(0.8),
+            style="Accent.TButton",
         )
         zoom_out_btn.pack(side=tk.LEFT, padx=2)
 
@@ -241,11 +322,17 @@ class ImageNumberingApp:
             zoom_frame,
             text="+",
             width=2,
-            command=lambda: self.change_zoom(1.25)
+            command=lambda: self.change_zoom(1.25),
+            style="Accent.TButton",
         )
         zoom_in_btn.pack(side=tk.LEFT, padx=2)
 
-        update_preview_btn = ttk.Button(preview_outer, text="Обновить предпросмотр", command=self.update_preview)
+        update_preview_btn = ttk.Button(
+            preview_outer,
+            text="Обновить предпросмотр",
+            command=self.update_preview,
+            style="Accent.TButton",
+        )
         update_preview_btn.pack(anchor="e", pady=5)
 
         # Нижняя часть: настройки
@@ -259,7 +346,12 @@ class ImageNumberingApp:
         font_frame = ttk.Labelframe(left_settings, text="Шрифт и цвет")
         font_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        font_btn = ttk.Button(font_frame, text="Выбрать TTF шрифт", command=self.choose_font)
+        font_btn = ttk.Button(
+            font_frame,
+            text="Выбрать TTF шрифт",
+            command=self.choose_font,
+            style="Accent.TButton",
+        )
         font_btn.grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
         self.font_label = ttk.Label(font_frame, text="Шрифт не выбран (будет использован стандартный)")
@@ -269,7 +361,12 @@ class ImageNumberingApp:
         font_size_entry = ttk.Entry(font_frame, textvariable=self.font_size_var, width=6)
         font_size_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-        color_btn = ttk.Button(font_frame, text="Цвет текста", command=self.choose_text_color)
+        color_btn = ttk.Button(
+            font_frame,
+            text="Цвет текста",
+            command=self.choose_text_color,
+            style="Accent.TButton",
+        )
         color_btn.grid(row=2, column=0, padx=5, pady=5, sticky="e")
 
         self.color_label = ttk.Label(font_frame, text="Цвет: чёрный")
@@ -342,7 +439,8 @@ class ImageNumberingApp:
         save_folder_btn = ttk.Button(
             right_settings,
             text="Папка для сохранения...",
-            command=self.choose_output_folder
+            command=self.choose_output_folder,
+            style="Accent.TButton",
         )
         save_folder_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -352,8 +450,66 @@ class ImageNumberingApp:
         )
         self.output_folder_label.pack(side=tk.LEFT, padx=5, pady=5)
 
-        apply_btn = ttk.Button(right_settings, text="Применить ко всем изображениям", command=self.apply_to_all)
+        apply_btn = ttk.Button(
+            right_settings,
+            text="Применить ко всем изображениям",
+            command=self.apply_to_all,
+            style="Accent.TButton",
+        )
         apply_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+
+    def _setup_keyboard_shortcuts(self):
+        self.master.bind_all("<Left>", self.on_prev_image, add="+")
+        self.master.bind_all("<Right>", self.on_next_image, add="+")
+        self.master.bind_all("<Return>", self.on_enter_navigate, add="+")
+
+    def _should_ignore_navigation_shortcut(self, event, allow_listbox=False):
+        if event is None:
+            return False
+        widget = event.widget
+        if widget is None:
+            return False
+        if isinstance(widget, (tk.Entry, tk.Text)):
+            return True
+        widget_class = widget.winfo_class()
+        ignored_classes = {"TEntry", "Entry", "TCombobox", "TSpinbox", "Spinbox", "TButton"}
+        if widget_class in ignored_classes:
+            return True
+        if not allow_listbox and isinstance(widget, tk.Listbox):
+            return True
+        return False
+
+    def navigate_images(self, offset):
+        if not self.image_paths:
+            return
+        selection = self.listbox.curselection()
+        if selection:
+            current_idx = selection[0]
+        else:
+            current_idx = 0
+        new_idx = max(0, min(current_idx + offset, len(self.image_paths) - 1))
+        if new_idx == current_idx:
+            return
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(new_idx)
+        self.listbox.activate(new_idx)
+        self.listbox.see(new_idx)
+        self.update_preview()
+
+    def on_prev_image(self, event=None):
+        if event and self._should_ignore_navigation_shortcut(event):
+            return
+        self.navigate_images(-1)
+
+    def on_next_image(self, event=None):
+        if event and self._should_ignore_navigation_shortcut(event):
+            return
+        self.navigate_images(1)
+
+    def on_enter_navigate(self, event=None):
+        if event and self._should_ignore_navigation_shortcut(event, allow_listbox=True):
+            return
+        self.navigate_images(1)
 
     # --- Вспомогательные методы ---
 
@@ -399,7 +555,7 @@ class ImageNumberingApp:
             return
 
         self.recalculate_numbering()
-        self.refresh_listbox_display(keep_selection=False)
+        self.refresh_listbox_display(keep_selection=False, keep_view=False)
         self.update_preview()
 
     def choose_font(self):
@@ -498,11 +654,18 @@ class ImageNumberingApp:
 
             self.index_to_number[idx] = current_number
 
-    def refresh_listbox_display(self, keep_selection=True):
+    def refresh_listbox_display(self, keep_selection=True, keep_view=True):
         prev_idx = 0
         sel = self.listbox.curselection()
         if keep_selection and sel:
             prev_idx = sel[0]
+
+        prev_view_start = 0.0
+        if keep_view:
+            try:
+                prev_view_start = self.listbox.yview()[0]
+            except tk.TclError:
+                prev_view_start = 0.0
 
         self.listbox.delete(0, tk.END)
 
@@ -521,14 +684,27 @@ class ImageNumberingApp:
 
             text = f"{num_str} | {base}{size_str}"
             self.listbox.insert(tk.END, text)
+            inserted_index = self.listbox.size() - 1
+            if idx in self.per_image_skip:
+                self.listbox.itemconfig(inserted_index, foreground=self.danger_color)
+            else:
+                self.listbox.itemconfig(inserted_index, foreground=self.listbox_default_fg)
 
         if self.image_paths:
             if keep_selection:
                 idx_to_select = min(prev_idx, len(self.image_paths) - 1)
             else:
                 idx_to_select = 0
+            self.listbox.selection_clear(0, tk.END)
             self.listbox.selection_set(idx_to_select)
             self.listbox.activate(idx_to_select)
+            self.listbox.see(idx_to_select)
+
+        if keep_view:
+            try:
+                self.listbox.yview_moveto(prev_view_start)
+            except tk.TclError:
+                pass
 
     def get_font(self):
         size = self.parse_int(self.font_size_var.get(), 72)
